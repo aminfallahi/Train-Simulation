@@ -21,10 +21,17 @@ public:
     bool addStation(int,int,int,int);
     Station* getStationById(int);
     void addTrain(Train*);
+    List<Train*> getTrains();
+    void addTrainThread(Thread*);
+    void addResThread(Thread*);
+    Thread* getTrainThreadById(int);
+    Thread* getResThreadById(int);
 private:
     List<Station*> stations;
     List<Request*> requests;
     List<Train*> trains;
+    List<Thread*> resThreads;
+    List<Thread*> trainThreads;
 };
 
 #endif	/* SIMULATOR_H */

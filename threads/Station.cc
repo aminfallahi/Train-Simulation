@@ -68,3 +68,23 @@ void Station::incNumCoach(int n)
 {
 	numCouch+=n;
 }
+
+int Station::getNumBusiness()
+{
+	return numBusiness;
+}
+
+int Station::getNumCoach()
+{
+	return numCouch;
+}
+
+int Station::getBusinessFare()
+{
+	return fareBusiness;
+}
+
+int Station::getCoachFare()
+{
+	return fareCoach;
+}

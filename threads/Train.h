@@ -20,7 +20,7 @@ public:
     virtual ~Train();
     List<Station*> getStations();
     void addRequest(Request*);
-    bool hasRoom(int, bool);
+    bool hasRoom(Request*);
     List<int> getDepTimes();
     List<Request*> getRequests();
     bool processRequestArrive(Request*);
@@ -29,13 +29,13 @@ public:
     int getId();
     friend bool operator==(const Train&, const Train&);
     bool findTrain(Request*);
+    int calculateFare(Request*);
+    int getNumOfRequests();
+    int getNumOfPassengers();
 private:
     int id;
     List<Station*> stations;
     List<int> departureTime;
-    List<int> faresCoach, faresBusiness;
-    const int seatCountCoach = 40;
-    const int seatCountBusiness = 20;
     List<Request*> requests;
 
 };

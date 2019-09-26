@@ -22,6 +22,10 @@ public:
     void decNumBusiness(int);
     void incNumCoach(int);
     void incNumBusiness(int);
+    int getNumCoach();
+    int getNumBusiness();
+    int getBusinessFare();
+    int getCoachFare();
 
 private:
     int id;

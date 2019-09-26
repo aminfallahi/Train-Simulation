@@ -31,11 +31,14 @@ std::vector<std::string> split(std::string str, std::string sep)
 
 Simulator sim;
 int hour, minute;
-Thread* trainT[1000];
-Thread* reqT[1000];
+Thread* resT[1000];
+int numPassStation[1000];
 int numOfStations = 0;
 void trainThread(Train* train);
 void reservationThread(Request* req);
+int reqGrantedPerTime = 0, reqRefusedPerTime = 0;
+int reqTot = 0, reqTotGranted = 0;
+int passTot = 0;
 
 void adminThread(int x)
 {
@@ -50,43 +53,71 @@ void adminThread(int x)
 	in.open("../threads/in.txt");
 	while (getline(in, line)) {
 		Train* train = new Train();
-		trainT[train->getId()] = new Thread("train thread");
-		//also set train info here
+		Thread* newTrainThread;
+		newTrainThread = new Thread("train thread");
+		sim.addTrainThread(newTrainThread);
 		vector<string> stations;
 		stations = split(line, "-");
 		int i;
+		//add stations to train route
 		for (i = 0; i < stations.size(); i++) {
 			vector<string> stationInfo;
 			stationInfo = split(stations[i], "*");
 			int depTime = stoi(split(stationInfo[1], ":")[0])*60 + stoi(split(stationInfo[1], ":")[1]);
-			train->addStation(stoi(stationInfo[0]), depTime, stoi(stationInfo[1]), stoi(stationInfo[2]));
-			if (sim.addStation(stoi(stationInfo[0]), depTime, stoi(stationInfo[1]), stoi(stationInfo[2])))
+			train->addStation(stoi(stationInfo[0]), depTime, stoi(stationInfo[2]), stoi(stationInfo[3]));
+			if (sim.addStation(stoi(stationInfo[0]), depTime, stoi(stationInfo[2]), stoi(stationInfo[3])))
 				numOfStations++;
 		}
 		sim.addTrain(train);
 
-		trainT[train->getId()]->Fork((VoidFunctionPtr) trainThread, (void*) train);
+		sim.getTrainThreadById(train->getId())->Fork((VoidFunctionPtr) trainThread, (void*) train);
 	}
 
 	for (hour = 6; hour < 23; hour++) {
 
 		for (minute = 0; minute < 60; minute += 10) {
-			printf("TIME %d:%d\n", hour, minute);
+			printf("-----------\nTIME %d:%d\n", hour, minute);
 			int reqCount;
+			reqGrantedPerTime = 0;
+			reqRefusedPerTime = 0;
 			for (reqCount = 0; reqCount < 5; reqCount++) {
+				//create new request
 				Request* req = new Request();
-				reqT[req->getId()] = new Thread("forked thread");
-				reqT[req->getId()]->Fork((VoidFunctionPtr) reservationThread, (void *) req);
+				resT[req->getId()] = new Thread("forked thread");
+				resT[req->getId()]->Fork((VoidFunctionPtr) reservationThread, (void *) req);
+				reqTot++;
 			}
 			kernel->currentThread->Yield();
+			printf("\n\tGranted/Refused requests in this time unit: %d %d\n\n", reqGrantedPerTime, reqRefusedPerTime);
 		}
 
 	}
+
+	printf("--------\nPrinting totals:\n");
+	int i;
+	List<Train*> trains = sim.getTrains();
+	ListIterator<Train*> trainIter(&trains);
+	for (; !trainIter.IsDone(); trainIter.Next()) {
+		printf("\tNum of itineraries served for train %d: %d\n", trainIter.Item()->getId(), trainIter.Item()->getNumOfRequests());
+		printf("\tNum of passengers for train %d: %d\n", trainIter.Item()->getId(), trainIter.Item()->getNumOfPassengers());
+		passTot += trainIter.Item()->getNumOfPassengers();
+	}
+	int max = 0, maxId = 0;
+	i = 0;
+	for (i = 0; i < numOfStations; i++) {
+		if (numPassStation[i] > max) {
+			max = numPassStation[i];
+			maxId = i;
+		}
+	}
+	printf("\n\tThe busiest section is between station %d and station %d\n", maxId, maxId + 1);
+	printf("\tTotal number of passengers served: %d\n", passTot);
+	printf("\tTotal number of requests: %d\n", reqTot);
+	printf("\tTotal number of granted requests: %d\n", reqTotGranted);
 }
 
 void trainThread(Train* train)
 {
-	printf("*I'm in train thread\n");
 	kernel->interrupt->SetLevel(IntOff);
 
 	while (true) { //or hour<23?
@@ -100,13 +131,26 @@ void trainThread(Train* train)
 				List<Request*> requests = train->getRequests();
 				ListIterator<Request*> reqIter(&requests);
 
+				//check to see if any reservations are scheduled for this train
+				//get new passengers on the train
+				int numToBoard = 0;
+				int numItinerary = 0;
 				for (; !reqIter.IsDone(); reqIter.Next()) {
 					if (reqIter.Item()->getDepStation()->getId() == stationsIter.Item()->getId()) {
 						train->processRequestArrive(reqIter.Item());
-						printf("00000 Train %d arrived for request %d\n", train->getId(), reqIter.Item()->getId());
-						kernel->scheduler->ReadyToRun(reqT[reqIter.Item()->getId()]);
+						printf("\tTrain %d arrived for request %d\n", train->getId(), reqIter.Item()->getId());
+
+						//make reservation thread ready to run
+						kernel->scheduler->ReadyToRun(resT[reqIter.Item()->getId()]);
+						numToBoard += reqIter.Item()->getPassengerCount();
+						numItinerary++;
+						//itineraryTot++;
+						//passTot += reqIter.Item()->getPassengerCount();
+						numPassStation[stationsIter.Item()->getId()] += reqIter.Item()->getPassengerCount();
 					}
 				}
+				printf("\tNumber of passengers boarding train %d at station %d: %d\n", train->getId(), stationsIter.Item()->getId(), numToBoard);
+				printf("\tNumber of itineraries for boarding train %d at station %d: %d\n", train->getId(), stationsIter.Item()->getId(), numItinerary);
 
 			}
 			if ((int) t / 60 == hour && t % 60 == minute) { //departure
@@ -114,13 +158,25 @@ void trainThread(Train* train)
 
 				ListIterator<Request*> reqIter(&requests);
 
+				int numToDepart = 0;
+				int numItinerary = 0;
+
+				//check reservations and remove passengers with current destination
 				for (; !reqIter.IsDone(); reqIter.Next()) {
 					if (reqIter.Item()->getDesStation()->getId() == stationsIter.Item()->getId()) {
 						train->processRequestDepart(reqIter.Item());
-						printf("00000 Train %d reached destination for request %d\n", train->getId(), reqIter.Item()->getId());
-						kernel->scheduler->ReadyToRun(reqT[reqIter.Item()->getId()]);
+						printf("\tTrain %d reached destination for request %d\n", train->getId(), reqIter.Item()->getId());
+
+						//make reservation thread ready to run
+						kernel->scheduler->ReadyToRun(resT[reqIter.Item()->getId()]);
+						numToDepart += reqIter.Item()->getPassengerCount();
+						numItinerary++;
+
 					}
 				}
+				printf("\tNumber of passengers departing train %d at station %d: %d\n", train->getId(), stationsIter.Item()->getId(), numToDepart);
+				printf("\tNumber of itineraries for departing train %d at station %d: %d\n", train->getId(), stationsIter.Item()->getId(), numItinerary);
+
 			}
 
 		}
@@ -131,9 +187,9 @@ void trainThread(Train* train)
 
 void reservationThread(Request* req)
 {
-	printf("*I'm in reservation thread\n");
 	kernel->interrupt->SetLevel(IntOff);
-	printf("num of stations %d\n", numOfStations);
+	
+	//generate random departure/destination station
 	int depStationId = rand() % numOfStations + 1;
 	int desStationId = rand() % numOfStations + 1;
 	while (depStationId == desStationId)
@@ -143,23 +199,33 @@ void reservationThread(Request* req)
 		desStationId = depStationId;
 		depStationId = temp;
 	}
-	printf("Creating new request %d with departure station %d and destination station %d\n", req->getId(), depStationId, desStationId);
+	bool seatType = (rand() % 2) == 1 ? true : false;
+	printf("\n\tCreating new request %d with departure station %d and destination station %d and seat type %s\n", req->getId(), depStationId, desStationId, seatType ? "Business" : "Coach");
 	Station* depStation = new Station();
 	depStation = sim.getStationById(depStationId);
 	Station* desStation = new Station();
 	desStation = sim.getStationById(desStationId);
-	req->setSeatType((rand() % 2) == 1 ? true : false);
+	//set request info
+	req->setSeatType(seatType);
 	req->setPassengerCount(rand() % 8 + 1);
 	req->setDepStation(depStation);
 	req->setDesStation(desStation);
-	//done in addrequest: check if there is any train with appropriate path and seats to handle this req
-	if (sim.addRequest(req))
+	//check if there is any train with appropriate path and seats to handle this req
+	if (sim.addRequest(req)) {
+		reqGrantedPerTime++;
+		reqTotGranted++;
+		//request granted. Sleep until train arrives.
 		kernel->currentThread->Sleep(false);
-	else
+	} else {
+		reqRefusedPerTime++;
+		//request refused. Finish thread
 		kernel->currentThread->Finish();
-	//at this point, a train has been assigned to req and arrived, wake up and load passengers
+	}
+	//train arrived for this reservation, if I am at this point, train thread should have made me ready to run.
+	//I will sleep again until my train reaches destination
 	kernel->currentThread->Sleep(false);
-	//now get the passengers off the train
+	//train arrived at destination. That is why train thread has made me ready to run
+	//let's finish this reservation. nothing more to do.
 	kernel->currentThread->Finish();
 }
 

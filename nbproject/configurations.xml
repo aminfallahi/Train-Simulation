@@ -42,7 +42,6 @@
         <in>kernel.cc</in>
         <in>main.cc</in>
         <in>scheduler.cc</in>
-        <in>supermarket.cc</in>
         <in>synch.cc</in>
         <in>thread.cc</in>
         <in>threadtest.cc</in>
@@ -357,19 +356,6 @@
             <pElem>machine</pElem>
             <pElem>lib</pElem>
             <pElem>/usr/include/x86_64-linux-gnu/c++/8/32/bits</pElem>
-            <pElem>filesys</pElem>
-            <pElem>userprog</pElem>
-            <pElem>build.linux</pElem>
-          </incDir>
-        </ccTool>
-      </item>
-      <item path="threads/supermarket.cc" ex="false" tool="1" flavor2="0">
-        <ccTool>
-          <incDir>
-            <pElem>threads</pElem>
-            <pElem>lib</pElem>
-            <pElem>/usr/include/x86_64-linux-gnu/c++/8/32/bits</pElem>
-            <pElem>machine</pElem>
             <pElem>filesys</pElem>
             <pElem>userprog</pElem>
             <pElem>build.linux</pElem>

@@ -22,9 +22,9 @@ Train::~Train()
 
 }
 
+//add station to train route. this should be done in order.
 void Train::addStation(int ID, int depTime, int fareCoach, int fareBusiness)
 {
-	printf("Addint station to train\n");
 	Station* station = new Station();
 	station->setId(ID);
 	station->setDepTime(depTime);
@@ -36,15 +36,17 @@ void Train::addRequest(Request* req)
 {
 	requests.Append(req);
 	ListIterator<Station*> stationIter(&stations);
-	bool reachedDep=false;
-	for (; !stationIter.IsDone(); stationIter.Next()){
-		if (stationIter.Item()->getId()==req->getDepStation()->getId() || reachedDep){
-			reachedDep=true;
+	bool reachedDep = false;
+	for (; !stationIter.IsDone(); stationIter.Next()) {
+		if (stationIter.Item()->getId() == req->getDepStation()->getId() || reachedDep) {
+			reachedDep = true;
 			if (req->isBusiness())
 				stationIter.Item()->decNumBusiness(req->getPassengerCount());
 			else
 				stationIter.Item()->decNumCoach(req->getPassengerCount());
 		}
+		if (stationIter.Item()->getId() == req->getDesStation()->getId())
+			break;
 	}
 }
 
@@ -58,32 +60,30 @@ List<Station*> Train::getStations()
 	return stations;
 }
 
-bool Train::hasRoom(int num, bool isBusiness, Station* station)
+//go through every station for every train and see if there is room for current request at each station for each train
+bool Train::hasRoom(Request *req)
 {
-	if (isBusiness) {
-		if (seatCountBusiness - numBusiness >= num)
-			return true;
-		return false;
+	ListIterator<Station*> stationIter(&stations);
+	bool reachedDep = false;
+	for (; !stationIter.IsDone(); stationIter.Next()) {
+		if (stationIter.Item()->getId() == req->getDepStation()->getId() || reachedDep) {
+			reachedDep = true;
+			if (req->isBusiness()) {
+				if (stationIter.Item()->getNumBusiness() < req->getPassengerCount())
+					return false;
+			} else {
+				if (stationIter.Item()->getNumCoach() < req->getPassengerCount())
+					return false;
+			}
+		}
+		if (stationIter.Item()->getId() == req->getDesStation()->getId())
+			break;
 	}
-	if (seatCountCoach - numCoach >= num)
-		return true;
-	return false;
+	return true;
 }
 
 bool Train::processRequestArrive(Request* req)
 {
-	/*if (req->isBusiness()) {
-		if (this->hasRoom(req->getPassengerCount(), true)) {
-			numBusiness += req->getPassengerCount();
-			req->setOnTrain();
-		}
-		return true;
-	}
-	if (this->hasRoom(req->getPassengerCount(), false)) {
-		numCoach += req->getPassengerCount();
-		req->setOnTrain();
-		return true;
-	}*/
 	req->setOnTrain();
 	return false;
 }
@@ -91,11 +91,7 @@ bool Train::processRequestArrive(Request* req)
 void Train::processRequestDepart(Request* req)
 {
 	req->setFinished();
-	/*if (req->isBusiness())
-		numBusiness -= req->getPassengerCount();
-	else
-		numCoach -= req->getPassengerCount();*/
-	
+
 
 }
 
@@ -124,7 +120,41 @@ bool Train::findTrain(Request* req)
 			}
 		}
 	}
-	if (depdesCount==2)
+	if (depdesCount == 2)
 		return true;
 	return false;
+}
+
+int Train::calculateFare(Request* req)
+{
+	ListIterator<Station*> stationIter(&stations);
+	bool reachedDep = false;
+	int fare = 0;
+	for (; !stationIter.IsDone(); stationIter.Next()) {
+		if (stationIter.Item()->getId() == req->getDepStation()->getId() || reachedDep) {
+			reachedDep = true;
+			if (req->isBusiness())
+				fare += stationIter.Item()->getBusinessFare() * req->getPassengerCount();
+			else
+				fare += stationIter.Item()->getCoachFare() * req->getPassengerCount();
+		}
+		if (stationIter.Item()->getId() == req->getDesStation()->getId())
+			break;
+	}
+	return fare;
+}
+
+int Train::getNumOfRequests()
+{
+	return requests.NumInList();
+}
+
+int Train::getNumOfPassengers()
+{
+	int num=0;
+	ListIterator<Request*> reqIter(&requests);
+	for (; !reqIter.IsDone(); reqIter.Next()){
+		num+=reqIter.Item()->getPassengerCount();
+	}
+	return num;
 }
