@@ -12,8 +12,17 @@
 #include <iostream>
 #include <vector>
 #include "Train.h"
+#include <sstream>
 
 using namespace std;
+
+int _stoi(string str)
+{
+	stringstream ss(str);
+	int out;
+	ss>>out;
+	return out;
+}
 
 std::vector<std::string> split(std::string str, std::string sep)
 {
@@ -63,9 +72,9 @@ void adminThread(int x)
 		for (i = 0; i < stations.size(); i++) {
 			vector<string> stationInfo;
 			stationInfo = split(stations[i], "*");
-			int depTime = stoi(split(stationInfo[1], ":")[0])*60 + stoi(split(stationInfo[1], ":")[1]);
-			train->addStation(stoi(stationInfo[0]), depTime, stoi(stationInfo[2]), stoi(stationInfo[3]));
-			if (sim.addStation(stoi(stationInfo[0]), depTime, stoi(stationInfo[2]), stoi(stationInfo[3])))
+			int depTime = _stoi(split(stationInfo[1], ":")[0])*60 + _stoi(split(stationInfo[1], ":")[1]);
+			train->addStation(_stoi(stationInfo[0]), depTime, _stoi(stationInfo[2]), _stoi(stationInfo[3]));
+			if (sim.addStation(_stoi(stationInfo[0]), depTime, _stoi(stationInfo[2]), _stoi(stationInfo[3])))
 				numOfStations++;
 		}
 		sim.addTrain(train);
@@ -114,17 +123,19 @@ void adminThread(int x)
 	printf("\tTotal number of passengers served: %d\n", passTot);
 	printf("\tTotal number of requests: %d\n", reqTot);
 	printf("\tTotal number of granted requests: %d\n", reqTotGranted);
+	kernel->currentThread->Finish();
 }
 
 void trainThread(Train* train)
 {
 	kernel->interrupt->SetLevel(IntOff);
 
-	while (true) { //or hour<23?
+	while (true) {
 		//check train arrival-departure hours and see if it's arrival time
 		List<Station*> stations = train->getStations();
 		ListIterator<Station*> stationsIter(&stations);
 		for (; !stationsIter.IsDone(); stationsIter.Next()) {
+			char stats[10000];
 			int t = stationsIter.Item()->getDepTime();
 
 			if ((int) (t - 10) / 60 == hour && (t - 10) % 60 == minute) { //arrival
@@ -144,14 +155,12 @@ void trainThread(Train* train)
 						kernel->scheduler->ReadyToRun(resT[reqIter.Item()->getId()]);
 						numToBoard += reqIter.Item()->getPassengerCount();
 						numItinerary++;
-						//itineraryTot++;
-						//passTot += reqIter.Item()->getPassengerCount();
 						numPassStation[stationsIter.Item()->getId()] += reqIter.Item()->getPassengerCount();
 					}
 				}
 				printf("\tNumber of passengers boarding train %d at station %d: %d\n", train->getId(), stationsIter.Item()->getId(), numToBoard);
 				printf("\tNumber of itineraries for boarding train %d at station %d: %d\n", train->getId(), stationsIter.Item()->getId(), numItinerary);
-
+				break;
 			}
 			if ((int) t / 60 == hour && t % 60 == minute) { //departure
 				List<Request*> requests = train->getRequests();
@@ -174,6 +183,7 @@ void trainThread(Train* train)
 
 					}
 				}
+				break;
 				printf("\tNumber of passengers departing train %d at station %d: %d\n", train->getId(), stationsIter.Item()->getId(), numToDepart);
 				printf("\tNumber of itineraries for departing train %d at station %d: %d\n", train->getId(), stationsIter.Item()->getId(), numItinerary);
 
@@ -188,7 +198,7 @@ void trainThread(Train* train)
 void reservationThread(Request* req)
 {
 	kernel->interrupt->SetLevel(IntOff);
-	
+
 	//generate random departure/destination station
 	int depStationId = rand() % numOfStations + 1;
 	int desStationId = rand() % numOfStations + 1;
