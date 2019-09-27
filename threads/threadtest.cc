@@ -82,7 +82,7 @@ void adminThread(int x)
 		sim.getTrainThreadById(train->getId())->Fork((VoidFunctionPtr) trainThread, (void*) train);
 	}
 
-	for (hour = 6; hour < 23; hour++) {
+	for (hour = 6; hour <= 23; hour++) {
 
 		for (minute = 0; minute < 60; minute += 10) {
 			printf("-----------\nTIME %d:%d\n", hour, minute);
@@ -98,6 +98,8 @@ void adminThread(int x)
 			}
 			kernel->currentThread->Yield();
 			printf("\n\tGranted/Refused requests in this time unit: %d %d\n\n", reqGrantedPerTime, reqRefusedPerTime);
+			if (hour == 23)
+				break;
 		}
 
 	}
